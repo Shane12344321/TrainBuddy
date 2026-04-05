@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrainBuddy — Find VIT Travel Companions</title>
+    <meta name="description"
+        content="Find VIT Vellore students travelling on the same Indian Railways train during semester breaks. Post your journey and connect with co-passengers.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles/index.css">
+</head>
+
+<body>
+    <!-- Animated background -->
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+    <div class="bg-glow bg-glow-3"></div>
+
+    <!-- ===== LOGIN SCREEN ===== -->
+    <div class="login-screen" id="login-screen">
+        <div class="login-panel">
+            <!-- Left: Hero Image -->
+            <div class="login-left">
+                <img src="assets/login-hero.png" alt="" class="login-hero-img">
+                <div class="login-left-overlay">
+                    <div class="login-left-top">
+                        <div class="login-brand">
+                            <svg viewBox="0 0 32 32" fill="none" width="28" height="28">
+                                <path d="M6 8C6 6.89543 6.89543 6 8 6H24C25.1046 6 26 6.89543 26 8V20C26 21.1046 25.1046 22 24 22H8C6.89543 22 6 21.1046 6 20V8Z" fill="url(#lg)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                                <rect x="10" y="10" width="4" height="4" rx="0.5" fill="rgba(255,255,255,0.85)"/>
+                                <rect x="18" y="10" width="4" height="4" rx="0.5" fill="rgba(255,255,255,0.85)"/>
+                                <rect x="9" y="22" width="3" height="4" rx="1.5" fill="url(#lg)"/>
+                                <rect x="20" y="22" width="3" height="4" rx="1.5" fill="url(#lg)"/>
+                                <path d="M4 22H28" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+                                <defs><linearGradient id="lg" x1="6" y1="6" x2="26" y2="26"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+                            </svg>
+                            <span class="login-brand-text">Train<span style="color:#a78bfa">Buddy</span></span>
+                        </div>
+                    </div>
+                    <div class="login-left-bottom">
+                        <h2 class="login-hero-tagline">Find Your Companions,<br>Share The Journey</h2>
+                        <div class="login-hero-dots">
+                            <span class="dot active"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Form -->
+            <div class="login-right">
+                <h1 class="login-title">Create an account</h1>
+                <p class="login-subtitle">Sign in with your VIT credentials</p>
+
+                <form id="login-form" class="login-form">
+                    <div class="login-row">
+                        <div class="login-field">
+                            <label for="login-name">Full Name</label>
+                            <input type="text" id="login-name" placeholder="e.g. Rahul" required autocomplete="name">
+                        </div>
+                        <div class="login-field">
+                            <label for="login-gender">Gender</label>
+                            <select id="login-gender" required>
+                                <option value="" disabled selected>Select</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                                <option value="undisclosed">Prefer not to say</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="login-field">
+                        <label for="login-email">VIT Email ID</label>
+                        <div class="email-input-wrap">
+                            <input type="text" id="login-email" placeholder="name.2024" required>
+                            <span class="email-suffix">@vitstudent.ac.in</span>
+                        </div>
+                    </div>
+                    <div class="login-field">
+                        <label for="login-whatsapp">WhatsApp Number</label>
+                        <input type="tel" id="login-whatsapp" placeholder="e.g. 9876543210" required pattern="[0-9]{10}">
+                    </div>
+                    <button type="submit" class="login-btn" id="login-btn">
+                        Create account
+                    </button>
+                </form>
+                <p class="login-note">Demo only — no real authentication</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MAIN APP (hidden until login) ===== -->
+    <div class="app-container hidden" id="app-container">
+
+        <!-- Header -->
+        <header id="app-header">
+            <div class="header-inner">
+                <div class="logo" id="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 32 32" fill="none">
+                            <path
+                                d="M6 8C6 6.89543 6.89543 6 8 6H24C25.1046 6 26 6.89543 26 8V20C26 21.1046 25.1046 22 24 22H8C6.89543 22 6 21.1046 6 20V8Z"
+                                fill="url(#train-grad)" stroke="rgba(255,255,255,0.2)" stroke-width="0.5" />
+                            <rect x="10" y="10" width="4" height="4" rx="0.5" fill="rgba(255,255,255,0.8)" />
+                            <rect x="18" y="10" width="4" height="4" rx="0.5" fill="rgba(255,255,255,0.8)" />
+                            <rect x="9" y="22" width="3" height="4" rx="1.5" fill="url(#train-grad)" />
+                            <rect x="20" y="22" width="3" height="4" rx="1.5" fill="url(#train-grad)" />
+                            <path d="M4 22H28" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" />
+                            <defs>
+                                <linearGradient id="train-grad" x1="6" y1="6" x2="26" y2="26">
+                                    <stop stop-color="#6366f1" />
+                                    <stop offset="1" stop-color="#8b5cf6" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+                    <span class="logo-text">Train<span class="logo-accent">Buddy</span></span>
+                </div>
+                <div class="header-right">
+                    <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode">
+                        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5" />
+                            <path
+                                d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                        </svg>
+                        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                        </svg>
+                    </button>
+                    <div class="user-pill" id="user-pill" title="Click to sign out">
+                        <div class="user-pill-avatar" id="user-pill-avatar"></div>
+                        <span class="user-pill-name" id="user-pill-name"></span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section id="hero">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    Find your <span class="gradient-text">train buddies</span><br>
+                    for the break
+                </h1>
+                <p class="hero-subtitle">
+                    No more WhatsApp spam. Enter your train number, find who else is travelling, and make the journey safe.
+                </p>
+                <!-- Train Search -->
+                <div class="search-container" id="search-container">
+                    <div class="search-input-wrap">
+                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8" />
+                            <path d="M21 21l-4.35-4.35" />
+                        </svg>
+                        <input type="text" id="train-search" placeholder="Enter train number (e.g. 22208)"
+                            autocomplete="off" inputmode="numeric">
+                        <div class="search-shortcut" id="search-shortcut">
+                            <kbd>⌘</kbd><kbd>K</kbd>
+                        </div>
+                    </div>
+                    <div class="autocomplete-dropdown" id="autocomplete-dropdown"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Selected Train Card -->
+        <section id="train-detail-section" class="hidden">
+            <div class="container">
+                <div class="train-detail-card" id="train-detail-card">
+                    <button class="back-btn" id="back-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 12H5M12 19l-7-7 7-7" />
+                        </svg>
+                        Back to search
+                    </button>
+                    <div class="train-header">
+                        <div class="train-number-badge" id="detail-train-number"></div>
+                        <h2 class="train-name" id="detail-train-name"></h2>
+                    </div>
+                    <div class="train-route">
+                        <div class="route-station">
+                            <span class="station-code" id="detail-source-code"></span>
+                            <span class="station-name" id="detail-source-name"></span>
+                        </div>
+                        <div class="route-line">
+                            <div class="route-arrow">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 12h14M12 5l7 7-7 7" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="route-station">
+                            <span class="station-code" id="detail-dest-code"></span>
+                            <span class="station-name" id="detail-dest-name"></span>
+                        </div>
+                    </div>
+
+                    <!-- Date Picker -->
+                    <div class="date-picker-section">
+                        <label class="date-label" for="travel-date">When are you travelling?</label>
+                        <input type="date" id="travel-date" class="date-input">
+                    </div>
+
+                    <!-- Passengers List -->
+                    <div class="passengers-section" id="passengers-section">
+                        <div class="passengers-header">
+                            <h3 class="passengers-title">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                    <circle cx="9" cy="7" r="4" />
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                                </svg>
+                                People on this train
+                            </h3>
+                            <span class="passengers-count" id="passengers-count">0</span>
+                        </div>
+                        <div class="passengers-list" id="passengers-list">
+                            <div class="empty-state" id="empty-passengers">
+                                <div class="empty-icon">🚂</div>
+                                <p>No one has posted for this train yet.</p>
+                                <p class="empty-sub">Be the first — add yourself below!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Add Yourself Form (simplified — user info comes from login) -->
+                    <div class="add-yourself-section" id="add-yourself-section">
+                        <h3 class="add-title">I'm on this train!</h3>
+                        <form id="add-passenger-form" class="passenger-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="passenger-coach">Coach/Class <span
+                                            class="optional">(optional)</span></label>
+                                    <select id="passenger-coach">
+                                        <option value="">Select class</option>
+                                        <option value="SL">Sleeper (SL)</option>
+                                        <option value="3A">AC 3 Tier (3A)</option>
+                                        <option value="2A">AC 2 Tier (2A)</option>
+                                        <option value="1A">AC First (1A)</option>
+                                        <option value="CC">Chair Car (CC)</option>
+                                        <option value="2S">Second Sitting (2S)</option>
+                                        <option value="GN">General (GN)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="passenger-boarding">Boarding At <span
+                                            class="optional">(optional)</span></label>
+                                    <input type="text" id="passenger-boarding" placeholder="e.g. Katpadi">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="passenger-departure">Departure Time <span
+                                            class="optional">(optional)</span></label>
+                                    <input type="time" id="passenger-departure">
+                                </div>
+                                <div class="form-group"></div>
+                            </div>
+                            <div class="form-row privacy-row" id="privacy-row">
+                                <div class="form-group privacy-group" id="privacy-group">
+                                    <label class="checkbox-label" for="women-only">
+                                        <input type="checkbox" id="women-only">
+                                        <span class="checkbox-custom"></span>
+                                        <span>Share my details only with women</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <button type="submit" class="submit-btn" id="submit-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5v14M5 12h14" />
+                                </svg>
+                                Add Me
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recent Journeys Feed -->
+        <section id="feed-section">
+            <div class="container">
+                <div class="feed-header">
+                    <h2 class="feed-title">Recent Journeys</h2>
+                    <p class="feed-subtitle">See what trains people are looking for companions on</p>
+                </div>
+                <div class="feed-grid" id="feed-grid">
+                    <div class="empty-state feed-empty" id="feed-empty">
+                        <div class="empty-icon">✨</div>
+                        <p>No journeys posted yet.</p>
+                        <p class="empty-sub">Search for your train above and be the first!</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer id="app-footer">
+            <div class="footer-inner">
+                <p>Made with ❤️ for VIT Vellore students</p>
+                <p class="footer-note">Demo — data is stored locally in your browser</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <span class="toast-icon">✓</span>
+        <span class="toast-msg" id="toast-msg"></span>
+    </div>
+
+    <script src="scripts/trains.js"></script>
+    <script src="scripts/kpd_times.js"></script>
+    <script src="scripts/app.js"></script>
+</body>
+
+</html>
