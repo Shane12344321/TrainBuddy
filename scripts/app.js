@@ -264,6 +264,13 @@ async function removePassenger(trainNumber, date, passengerId) {
         }
     });
 
+    // Close onboarding modal (optional - user can click overlay)
+    window.closeOnboarding = function() {
+        // Prevent closing - force user to complete profile
+        // Uncomment below if you want to allow closing:
+        // onboardingModal.classList.add('hidden');
+    };
+
     // ===== AUTOCOMPLETE =====
     function searchTrains(query) {
         query = query.trim();

@@ -18,7 +18,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Optional: Limit logins to VIT domains
-// googleProvider.setCustomParameters({
-//     hd: "vitstudent.ac.in"
-// });
+// Limit logins to VIT domain
+googleProvider.setCustomParameters({
+    hd: "vitstudent.ac.in"
+});
