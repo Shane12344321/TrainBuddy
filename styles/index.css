@@ -1370,27 +1370,6 @@ body {
 
 .passenger-whatsapp-btn svg { width: 16px; height: 16px; }
 
-.passenger-remove {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: var(--radius-sm);
-    transition: all var(--transition-fast);
-    flex-shrink: 0;
-    opacity: 0;
-}
-
-.passenger-card:hover .passenger-remove { opacity: 1; }
-
-.passenger-remove:hover {
-    color: #ef4444;
-    background: rgba(239, 68, 68, 0.1);
-}
-
-.passenger-remove svg { width: 16px; height: 16px; }
-
 /* Hidden passenger (women-only restricted) */
 .passenger-card.restricted {
     opacity: 0.5;
