@@ -471,6 +471,7 @@ async function removePassenger(trainNumber, date, passengerId) {
                         <div class="passenger-meta">
                             ${p.coach ? `<span class="passenger-tag">${escapeHtml(p.coach)}</span>` : ''}
                             ${p.boarding ? `<span class="passenger-tag">📍 ${escapeHtml(p.boarding)}</span>` : ''}
+                            ${p.leaving ? `<span class="passenger-tag">🏁 ${escapeHtml(p.leaving)}</span>` : ''}
                             ${p.departure ? `<span class="passenger-tag">🕐 ${escapeHtml(p.departure)}</span>` : ''}
                             <span class="passenger-tag tag-female">♀ Female</span>
                         </div>
@@ -505,6 +506,7 @@ async function removePassenger(trainNumber, date, passengerId) {
                     <div class="passenger-meta">
                         ${p.coach ? `<span class="passenger-tag">${escapeHtml(p.coach)}</span>` : ''}
                         ${p.boarding ? `<span class="passenger-tag">📍 ${escapeHtml(p.boarding)}</span>` : ''}
+                        ${p.leaving ? `<span class="passenger-tag">🏁 ${escapeHtml(p.leaving)}</span>` : ''}
                         ${p.departure ? `<span class="passenger-tag">🕐 ${escapeHtml(p.departure)}</span>` : ''}
                         ${genderTag}
                     </div>
@@ -537,12 +539,14 @@ async function removePassenger(trainNumber, date, passengerId) {
 
         const coach = document.getElementById('passenger-coach').value;
         const boarding = document.getElementById('passenger-boarding').value.trim();
+        const leaving = document.getElementById('passenger-leaving').value.trim();
         const departure = document.getElementById('passenger-departure').value;
         const womenOnly = currentUser.gender === 'female' && womenOnlyCheckbox.checked;
 
         await addPassenger(currentTrain.number, travelDateInput.value, {
             coach,
             boarding,
+            leaving,
             departure,
             womenOnly
         });
