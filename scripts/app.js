@@ -3,50 +3,31 @@
  * Find VIT travel companions on Indian Railways trains
  */
 
-(function () {
-    'use strict';
+import { auth, db, googleProvider } from './firebase-config.js';
+import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import { doc, getDoc, setDoc, collection, query, where, onSnapshot, updateDoc, arrayUnion, arrayRemove, getDocs } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-    // ===== STORAGE KEYS =====
-    const STORAGE_KEY = 'trainbuddy_journeys';
-    const THEME_KEY = 'trainbuddy_theme';
-    const USER_KEY = 'trainbuddy_user';
+// Global user state
+let currentUser = null;
 
-    // ===== USER SESSION =====
-    function getUser() {
-        try {
-            return JSON.parse(localStorage.getItem(USER_KEY));
-        } catch {
-            return null;
-        }
-    }
-
-    function saveUser(user) {
-        localStorage.setItem(USER_KEY, JSON.stringify(user));
-    }
-
-    function clearUser() {
-        localStorage.removeItem(USER_KEY);
-    }
-
-    // ===== STORAGE =====
-    function getJourneys() {
-        try {
-            return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-        } catch {
-            return [];
-        }
-    }
-
-    function saveJourneys(journeys) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(journeys));
-    }
-
-    function addPassenger(trainNumber, date, passenger) {
-        const journeys = getJourneys();
-        let journey = journeys.find(j => j.trainNumber === trainNumber && j.date === date);
-        if (!journey) {
+// ===== DATABASE MUTATIONS =====
+async function addPassenger(trainNumber, date, passenger) {
+    if (!currentUser) return null;
+    const journeyId = `${trainNumber}_${date}`;
+    const journeyRef = doc(db, 'journeys', journeyId);
+    
+    passenger.uid = currentUser.uid;
+    passenger.id = currentUser.uid; // One entry per user per train
+    passenger.addedAt = Date.now();
+    passenger.name = currentUser.name;
+    passenger.whatsapp = currentUser.whatsapp;
+    passenger.gender = currentUser.gender;
+    
+    try {
+        const docSnap = await getDoc(journeyRef);
+        if (!docSnap.exists()) {
             const train = TRAINS_MAP[trainNumber];
-            journey = {
+            await setDoc(journeyRef, {
                 trainNumber,
                 date,
                 trainName: train ? train.name : 'Unknown Train',
@@ -54,37 +35,45 @@
                 sourceCode: train ? train.sourceCode : '',
                 dest: train ? train.dest : '',
                 destCode: train ? train.destCode : '',
-                passengers: [],
+                passengers: [passenger],
                 createdAt: Date.now()
-            };
-            journeys.push(journey);
+            });
+        } else {
+            // Filter out old entry if user is updating their info
+            const data = docSnap.data();
+            const updatedPassengers = data.passengers.filter(p => p.uid !== currentUser.uid);
+            updatedPassengers.push(passenger);
+            await updateDoc(journeyRef, { passengers: updatedPassengers });
         }
-        passenger.id = Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-        passenger.addedAt = Date.now();
-        journey.passengers.push(passenger);
-        saveJourneys(journeys);
-        return journey;
+    } catch (error) {
+        console.error("Error adding passenger:", error);
     }
+}
 
-    function removePassenger(trainNumber, date, passengerId) {
-        const journeys = getJourneys();
-        const journey = journeys.find(j => j.trainNumber === trainNumber && j.date === date);
-        if (journey) {
-            journey.passengers = journey.passengers.filter(p => p.id !== passengerId);
-            if (journey.passengers.length === 0) {
-                const idx = journeys.indexOf(journey);
-                journeys.splice(idx, 1);
+async function removePassenger(trainNumber, date, passengerId) {
+    if (!currentUser) return;
+    const journeyId = `${trainNumber}_${date}`;
+    const journeyRef = doc(db, 'journeys', journeyId);
+    
+    try {
+        const docSnap = await getDoc(journeyRef);
+        if (docSnap.exists()) {
+            const currentPassengers = docSnap.data().passengers;
+            const passengerToRemove = currentPassengers.find(p => p.id === passengerId);
+            if (passengerToRemove && passengerToRemove.uid === currentUser.uid) {
+                await updateDoc(journeyRef, {
+                    passengers: arrayRemove(passengerToRemove)
+                });
+            } else {
+                console.error("Cannot remove another user");
             }
         }
-        saveJourneys(journeys);
+    } catch (error) {
+        console.error("Error removing passenger:", error);
     }
+}
 
     // ===== DOM REFS =====
-    // Login
-    const loginScreen = document.getElementById('login-screen');
-    const loginForm = document.getElementById('login-form');
-    const appContainer = document.getElementById('app-container');
-
     // App
     const searchInput = document.getElementById('train-search');
     const dropdown = document.getElementById('autocomplete-dropdown');
@@ -121,9 +110,18 @@
     const privacyRow = document.getElementById('privacy-row');
     const womenOnlyCheckbox = document.getElementById('women-only');
 
+    // Auth & Onboarding
+    const loginScreen = document.getElementById('login-screen');
+    const googleLoginBtn = document.getElementById('google-login-btn');
+    const guestLoginBtn = document.getElementById('guest-login-btn');
+    const appContainer = document.getElementById('app-container');
+    const onboardingModal = document.getElementById('onboarding-modal');
+    const onboardingForm = document.getElementById('onboarding-form');
+
     // State
     let currentTrain = null;
     let activeDropdownIndex = -1;
+    let currentPassengerListener = null;
     let dropdownItems = [];
 
     // ===== AVATAR COLORS =====
@@ -150,12 +148,11 @@
         return name.split(' ').map(w => w[0]).join('').substring(0, 2);
     }
 
-    // ===== LOGIN =====
-    function showApp() {
-        const user = getUser();
-        if (!user) return;
-
+    // ===== LOGIN & AUTH =====
+    function showApp(user) {
+        currentUser = user;
         loginScreen.classList.add('hidden');
+        onboardingModal.classList.add('hidden');
         appContainer.classList.remove('hidden');
 
         // Populate user pill
@@ -170,46 +167,100 @@
             privacyRow.classList.remove('visible');
             womenOnlyCheckbox.checked = false;
         }
+        
+        renderFeed();
     }
 
     function showLogin() {
+        currentUser = null;
         loginScreen.classList.remove('hidden');
         appContainer.classList.add('hidden');
+        onboardingModal.classList.add('hidden');
     }
 
-    loginForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const name = document.getElementById('login-name').value.trim();
-        const email = document.getElementById('login-email').value.trim();
-        const gender = document.getElementById('login-gender').value;
-        const whatsapp = document.getElementById('login-whatsapp').value.trim();
+    // Google Sign-In
+    googleLoginBtn.addEventListener('click', async () => {
+        try {
+            await signInWithPopup(auth, googleProvider);
+            // onAuthStateChanged will handle the rest
+        } catch (error) {
+            console.error("Auth error:", error);
+            showToast("Login failed. Please try again.");
+        }
+    });
 
-        if (!name || !email || !gender || !whatsapp) return;
+    // Guest / Anonymous Sign-In
+    guestLoginBtn.addEventListener('click', async () => {
+        try {
+            await signInAnonymously(auth);
+            // onAuthStateChanged will handle the rest
+        } catch (error) {
+            console.error("Guest Auth error:", error);
+            showToast("Demo login failed. Please enable Anonymous Auth in Firebase.");
+        }
+    });
+
+    // Auth State Observer
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            // Check if user profile exists in Firestore
+            const docRef = doc(db, 'users', user.uid);
+            const docSnap = await getDoc(docRef);
+            
+            if (docSnap.exists()) {
+                // Return user — they already completed onboarding
+                showApp({ uid: user.uid, email: user.email, ...docSnap.data() });
+            } else {
+                // New user — need onboarding for gender and whatsapp
+                loginScreen.classList.add('hidden');
+                appContainer.classList.add('hidden');
+                onboardingModal.classList.remove('hidden');
+            }
+        } else {
+            showLogin();
+        }
+    });
+
+    // Onboarding Form Submit
+    onboardingForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const gender = document.getElementById('onboard-gender').value;
+        const whatsapp = document.getElementById('onboard-whatsapp').value.trim();
+
+        if (!gender || ! whatsapp) return;
         if (!/^\d{10}$/.test(whatsapp)) {
             showToast('Enter a valid 10-digit WhatsApp number');
             return;
         }
 
-        const user = {
-            name,
-            email: email + '@vitstudent.ac.in',
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const profileData = {
+            name: user.displayName || 'VIT Student',
+            email: user.email,
             gender,
             whatsapp
         };
 
-        saveUser(user);
-        showApp();
-        seedDemoData();
-        renderFeed();
-        searchInput.focus();
-        showToast(`Welcome, ${name.split(' ')[0]}! 🎓`);
+        try {
+            await setDoc(doc(db, 'users', user.uid), profileData);
+            showApp({ uid: user.uid, ...profileData });
+            showToast(`Welcome, ${profileData.name.split(' ')[0]}! 🎓`);
+        } catch (error) {
+            console.error("Error saving profile:", error);
+            showToast("Failed to save profile.");
+        }
     });
 
     // Sign out via user pill click
-    userPill.addEventListener('click', () => {
+    userPill.addEventListener('click', async () => {
         if (confirm('Sign out of TrainBuddy?')) {
-            clearUser();
-            showLogin();
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Sign out error:", error);
+            }
         }
     });
 
@@ -366,12 +417,19 @@
     function renderPassengers() {
         if (!currentTrain || !travelDateInput.value) return;
 
-        const user = getUser();
-        const journeys = getJourneys();
-        const journey = journeys.find(j => j.trainNumber === currentTrain.number && j.date === travelDateInput.value);
-        const passengers = journey ? journey.passengers : [];
+        if (currentPassengerListener) {
+            currentPassengerListener(); // Unsubscribe previous
+        }
 
-        passengersCount.textContent = passengers.length;
+        const journeyId = `${currentTrain.number}_${travelDateInput.value}`;
+        const journeyRef = doc(db, 'journeys', journeyId);
+
+        currentPassengerListener = onSnapshot(journeyRef, (docSnap) => {
+            const passengers = docSnap.exists() ? docSnap.data().passengers : [];
+            passengersCount.textContent = passengers.length;
+            
+            const user = currentUser; // Use the global user object from onAuthStateChanged
+
 
         if (passengers.length === 0) {
             passengersList.innerHTML = '';
@@ -382,9 +440,9 @@
 
         emptyPassengers.classList.add('hidden');
         passengersList.innerHTML = passengers.map((p, i) => {
-            const isWomenOnly = p.womenOnly;
             const viewerIsMale = user && (user.gender === 'male' || user.gender === 'other' || user.gender === 'undisclosed');
-            const isRestricted = isWomenOnly && viewerIsMale;
+            // Hard privacy constraint: Any female passenger is hidden from male viewers automatically
+            const isRestricted = (p.gender === 'female' || p.womenOnly) && viewerIsMale;
 
             // Gender tag
             const genderTag = p.gender === 'female' ? '<span class="passenger-tag tag-female">♀ Female</span>' 
@@ -453,6 +511,7 @@
             </div>
         `;
         }).join('');
+        });
     }
 
     window.__removePassenger = function (id) {
@@ -464,11 +523,10 @@
     };
 
     // ===== ADD PASSENGER FORM =====
-    passengerForm.addEventListener('submit', (e) => {
+    passengerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const user = getUser();
-        if (!user) return;
+        if (!currentUser) return;
 
         if (!currentTrain || !travelDateInput.value) {
             showToast('Please select a travel date');
@@ -478,85 +536,94 @@
         const coach = document.getElementById('passenger-coach').value;
         const boarding = document.getElementById('passenger-boarding').value.trim();
         const departure = document.getElementById('passenger-departure').value;
-        const womenOnly = user.gender === 'female' && womenOnlyCheckbox.checked;
+        const womenOnly = currentUser.gender === 'female' && womenOnlyCheckbox.checked;
 
-        addPassenger(currentTrain.number, travelDateInput.value, {
-            name: user.name,
-            whatsapp: user.whatsapp,
+        await addPassenger(currentTrain.number, travelDateInput.value, {
             coach,
             boarding,
             departure,
-            gender: user.gender,
             womenOnly
         });
 
         passengerForm.reset();
-        if (user.gender === 'female') {
+        if (currentUser.gender === 'female') {
             privacyRow.classList.add('visible');
         }
-        renderPassengers();
-        renderFeed();
-        showToast(`${user.name.split(' ')[0]} added to ${currentTrain.number}! 🚂`);
+        showToast(`${currentUser.name.split(' ')[0]} added to ${currentTrain.number}! 🚂`);
     });
 
     // ===== FEED =====
+    let feedListener = null;
+
     function renderFeed() {
-        const journeys = getJourneys();
-        journeys.sort((a, b) => b.createdAt - a.createdAt);
+        if (!currentUser) return;
+
+        if (feedListener) feedListener();
 
         const today = new Date().toISOString().split('T')[0];
-        const upcoming = journeys.filter(j => j.date >= today);
+        const q = query(collection(db, 'journeys'), where('date', '>=', today));
 
-        if (upcoming.length === 0) {
-            feedGrid.innerHTML = '';
-            feedGrid.appendChild(feedEmpty);
-            feedEmpty.classList.remove('hidden');
-            return;
-        }
-
-        feedEmpty.classList.add('hidden');
-        feedGrid.innerHTML = upcoming.map((journey, i) => {
-            const displayDate = formatDate(journey.date);
-            const avatarHtml = journey.passengers.slice(0, 4).map((p, pi) => `
-                <div class="feed-avatar" style="background: ${getAvatarColor(p.name)}; z-index: ${10 - pi}">
-                    ${getInitials(p.name)}
-                </div>
-            `).join('');
-
-            return `
-                <div class="feed-card" style="animation-delay: ${i * 80}ms" data-train="${journey.trainNumber}" data-date="${journey.date}">
-                    <div class="feed-card-header">
-                        <span class="feed-train-num">${journey.trainNumber}</span>
-                        <span class="feed-date">${displayDate}</span>
-                    </div>
-                    <div class="feed-train-name">${escapeHtml(journey.trainName)}</div>
-                    <div class="feed-route">
-                        <span>${journey.sourceCode}</span>
-                        <span class="feed-route-dot">→</span>
-                        <span>${journey.destCode}</span>
-                        <span style="color: var(--text-muted); margin-left: auto; font-size: 0.78rem">${journey.source} to ${journey.dest}</span>
-                    </div>
-                    <div class="feed-passengers-bar">
-                        <div class="feed-avatars">
-                            ${avatarHtml}
-                        </div>
-                        <span class="feed-passenger-count"><strong>${journey.passengers.length}</strong> ${journey.passengers.length === 1 ? 'person' : 'people'}</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        feedGrid.querySelectorAll('.feed-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const num = card.dataset.train;
-                const date = card.dataset.date;
-                const train = TRAINS_MAP[num];
-                if (train) {
-                    selectTrain(train);
-                    travelDateInput.value = date;
-                    renderPassengers();
-                }
+        feedListener = onSnapshot(q, (snapshot) => {
+            const journeys = [];
+            snapshot.forEach(doc => {
+                journeys.push({ id: doc.id, ...doc.data() });
             });
+
+            journeys.sort((a, b) => b.createdAt - a.createdAt);
+
+            if (journeys.length === 0) {
+                feedGrid.innerHTML = '';
+                feedGrid.appendChild(feedEmpty);
+                feedEmpty.classList.remove('hidden');
+                return;
+            }
+
+            feedEmpty.classList.add('hidden');
+            feedGrid.innerHTML = journeys.map((journey, i) => {
+                const displayDate = formatDate(journey.date);
+                const avatarHtml = journey.passengers.slice(0, 4).map((p, pi) => `
+                    <div class="feed-avatar" style="background: ${getAvatarColor(p.name)}; z-index: ${10 - pi}">
+                        ${getInitials(p.name)}
+                    </div>
+                `).join('');
+
+                return `
+                    <div class="feed-card" style="animation-delay: ${i * 80}ms" data-train="${journey.trainNumber}" data-date="${journey.date}">
+                        <div class="feed-card-header">
+                            <span class="feed-train-num">${journey.trainNumber}</span>
+                            <span class="feed-date">${displayDate}</span>
+                        </div>
+                        <div class="feed-train-name">${escapeHtml(journey.trainName)}</div>
+                        <div class="feed-route">
+                            <span>${journey.sourceCode}</span>
+                            <span class="feed-route-dot">→</span>
+                            <span>${journey.destCode}</span>
+                            <span style="color: var(--text-muted); margin-left: auto; font-size: 0.78rem">${journey.source} to ${journey.dest}</span>
+                        </div>
+                        <div class="feed-passengers-bar">
+                            <div class="feed-avatars">
+                                ${avatarHtml}
+                            </div>
+                            <span class="feed-passenger-count"><strong>${journey.passengers.length}</strong> ${journey.passengers.length === 1 ? 'person' : 'people'}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            feedGrid.querySelectorAll('.feed-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const num = card.dataset.train;
+                    const date = card.dataset.date;
+                    const train = TRAINS_MAP[num];
+                    if (train) {
+                        selectTrain(train);
+                        travelDateInput.value = date;
+                        renderPassengers();
+                    }
+                });
+            });
+        }, (error) => {
+            console.error("Feed error:", error);
         });
     }
 
@@ -579,6 +646,7 @@
     }
 
     function escapeHtml(str) {
+        // Safe mode: escape all HTML entities
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
@@ -612,80 +680,10 @@
         setTheme(current === 'dark' ? 'light' : 'dark');
     });
 
-    // ===== SEED DEMO DATA =====
-    function seedDemoData() {
-        const journeys = getJourneys();
-        if (journeys.length > 0) return;
-
-        const today = new Date().toISOString().split('T')[0];
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
-        const dayAfter = new Date();
-        dayAfter.setDate(dayAfter.getDate() + 2);
-        const dayAfterStr = dayAfter.toISOString().split('T')[0];
-
-        const demos = [
-            {
-                trainNumber: '12697', date: tomorrowStr,
-                passengers: [
-                    { name: 'Arjun Menon', whatsapp: '9876543210', coach: '3A', boarding: 'Katpadi', departure: '17:05', gender: 'male', womenOnly: false },
-                    { name: 'Sneha Thomas', whatsapp: '9876543211', coach: 'SL', boarding: 'Katpadi', departure: '17:05', gender: 'female', womenOnly: true },
-                    { name: 'Vishnu Raj', whatsapp: '9876543212', coach: '3A', boarding: 'Katpadi', departure: '17:05', gender: 'male', womenOnly: false },
-                ]
-            },
-            {
-                trainNumber: '12625', date: tomorrowStr,
-                passengers: [
-                    { name: 'Priya Sharma', whatsapp: '9876543213', coach: '2A', boarding: 'Katpadi', departure: '02:02', gender: 'female', womenOnly: false },
-                    { name: 'Amit Kumar', whatsapp: '9876543214', coach: 'SL', boarding: 'Katpadi', departure: '02:02', gender: 'male', womenOnly: false },
-                ]
-            },
-            {
-                trainNumber: '12028', date: today,
-                passengers: [
-                    { name: 'Rohan Nair', whatsapp: '9876543215', coach: 'CC', boarding: 'Katpadi', departure: '09:00', gender: 'male', womenOnly: false },
-                ]
-            },
-            {
-                trainNumber: '12623', date: dayAfterStr,
-                passengers: [
-                    { name: 'Aisha Fathima', whatsapp: '9876543216', coach: '3A', boarding: 'Katpadi', departure: '21:30', gender: 'female', womenOnly: true },
-                    { name: 'Karthik Iyer', whatsapp: '9876543217', coach: 'SL', boarding: 'Katpadi', departure: '21:30', gender: 'male', womenOnly: false },
-                    { name: 'Deepa Nambiar', whatsapp: '9876543218', coach: '3A', boarding: 'Katpadi', departure: '21:30', gender: 'female', womenOnly: false },
-                    { name: 'Rahul Singh', whatsapp: '9876543219', coach: '2A', boarding: 'Katpadi', departure: '21:30', gender: 'male', womenOnly: false },
-                ]
-            },
-            {
-                trainNumber: '12621', date: tomorrowStr,
-                passengers: [
-                    { name: 'Meera Devi', whatsapp: '9876543220', coach: '3A', boarding: 'Katpadi', departure: '19:45', gender: 'female', womenOnly: true },
-                    { name: 'Vikram Chauhan', whatsapp: '9876543221', coach: 'SL', boarding: 'Katpadi', departure: '19:45', gender: 'male', womenOnly: false },
-                ]
-            },
-        ];
-
-        demos.forEach(demo => {
-            demo.passengers.forEach(p => {
-                addPassenger(demo.trainNumber, demo.date, p);
-            });
-        });
-    }
-
     // ===== INIT =====
     function init() {
         initTheme();
-
-        const user = getUser();
-        if (user) {
-            showApp();
-            seedDemoData();
-            renderFeed();
-            searchInput.focus();
-        } else {
-            showLogin();
-        }
+        // Auth state is now managed entirely by onAuthStateChanged observer
     }
 
     init();
-})();

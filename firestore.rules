@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can only read/write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Any authenticated user can read journeys (client-side filtering applies)
+    // Any authenticated user can update journeys (to add/remove themselves)
+    match /journeys/{journeyId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
